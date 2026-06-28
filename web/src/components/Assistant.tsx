@@ -6,9 +6,9 @@ type Msg = { role: "user" | "assistant"; content: string };
 const SUGGESTIONS = [
   "Which 5 projects have the most high risks?",
   "How many observations are still open vs closed?",
-  "Show me the open high-risk scaffolding issues",
+  "What does GI 2.709 require for gas testing?",
   "What are the most common risk categories?",
-  "Which reporter logged the most observations?",
+  "Summarize the work permit system requirements",
 ];
 
 export default function Assistant() {

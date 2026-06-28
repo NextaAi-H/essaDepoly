@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { db } from "../db/db.ts";
+import { getRetriever } from "./rag/index.ts";
 
 // ── Tool executors (parametrized SQL; group/sort columns are whitelisted) ────────
 
@@ -76,11 +77,20 @@ function listProjects(a: any) {
   return { sorted_by: sort, projects: rows };
 }
 
+// Search the Aramco standards corpus (GI / CSM / CSSP) for the actual clause text.
+function searchStandards(a: any) {
+  const r = getRetriever();
+  if (!r.available) return { error: "Standards corpus not loaded (run build:corpus)." };
+  const passages = r.retrieve(String(a?.query ?? ""), Math.min(Number(a?.limit) || 4, 6), 1);
+  return { query: a?.query ?? "", passages };
+}
+
 const EXECUTORS: Record<string, (a: any) => any> = {
   get_dashboard_overview: getOverview,
   aggregate_observations: aggregate,
   search_observations: searchObs,
   list_projects: listProjects,
+  search_standards: searchStandards,
 };
 
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
@@ -133,13 +143,31 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_standards",
+      description:
+        "Search the Saudi Aramco standards/instructions library (GI, CSM, CSSP, etc.) and return the actual clause text. " +
+        "Use for any question about what a rule/instruction REQUIRES or says — e.g. 'what does the gas testing procedure require', " +
+        "'GI 2.100 work permit rules', 'scaffolding inspection requirements'. Quote/cite the returned passages.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "the topic or clause to look up" }, limit: { type: "number" } },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
-const SYSTEM = `You are the HSE data assistant for Al-Essa (a Saudi Aramco contractor).
-You answer questions about the HSE observation dataset, projects (sites), and submitted reports.
-ALWAYS call the tools to look up real data before answering — never invent numbers.
-A "project" is a site/location. "Risks" are observations. Be concise, lead with the numbers,
-and when listing items use short bullet points. If a question is outside this data, say so briefly.`;
+const SYSTEM = `You are the HSE assistant for Al-Essa (a Saudi Aramco contractor).
+You can answer two kinds of questions, and you MUST use the tools (never invent answers):
+1. About the DATA — the observation dataset, projects (sites), and submitted reports. Use
+   get_dashboard_overview / aggregate_observations / search_observations / list_projects.
+2. About the STANDARDS/INSTRUCTIONS — what an Aramco GI / CSM / CSSP rule requires or says. Use
+   search_standards to fetch the real clause text, then quote and cite it (e.g. "Per GI 2.709 …").
+A "project" is a site/location. "Risks" are observations. Be concise, lead with the numbers or the
+cited clause, and use short bullet points. If something is outside both the data and the standards, say so.`;
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
