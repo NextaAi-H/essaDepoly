@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Facets, type Observation } from "../api.ts";
+import EditObservationModal from "./EditObservationModal.tsx";
 
 const COLUMNS: { key: string; label: string }[] = [
   { key: "week", label: "Wk" },
@@ -118,7 +119,14 @@ export default function DataGrid() {
                   <td className="px-3 py-2 whitespace-nowrap text-slate-400 text-xs">{r.date_open ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-400">{r.origin ?? "seed"}</td>
                   <td className="px-3 py-2">
-                    <button onClick={() => setEditing(r)} className="text-xs text-brand hover:underline whitespace-nowrap">Edit</button>
+                    <button
+                      onClick={() => setEditing(r)}
+                      title="Edit this observation"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-brand border border-brand/30 rounded-lg px-2 py-1 hover:bg-brand hover:text-white transition-colors whitespace-nowrap"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      Edit
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -127,7 +135,7 @@ export default function DataGrid() {
         </div>
       </div>
 
-      {editing && <EditModal obs={editing} onClose={() => setEditing(null)} onSaved={(u) => { applyEdit(u); setEditing(null); }} />}
+      {editing && <EditObservationModal obs={editing} onClose={() => setEditing(null)} onSaved={(u) => { applyEdit(u); setEditing(null); }} />}
 
       <div className="flex items-center justify-between text-sm text-slate-500">
         <span>{loading ? "Loading…" : `Showing ${data.total ? offset + 1 : 0}–${Math.min(offset + PAGE, data.total)} of ${data.total.toLocaleString()}`}</span>
@@ -142,75 +150,3 @@ export default function DataGrid() {
   );
 }
 
-function EditModal({ obs, onClose, onSaved }: { obs: Observation; onClose: () => void; onSaved: (u: Observation) => void }) {
-  const [form, setForm] = useState({
-    status: obs.status ?? "open",
-    risk: obs.risk ?? "",
-    category: obs.category ?? "",
-    date_open: obs.date_open ?? "",
-    date_closed: obs.date_closed ?? "",
-    observation: obs.observation ?? "",
-    recommendation: (obs as any).recommendation ?? "",
-    corrective_action: (obs as any).corrective_action ?? "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const field = "w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm";
-
-  async function save() {
-    setSaving(true); setErr(null);
-    try {
-      const updated = await api.updateObservation(obs.id, form);
-      onSaved(updated);
-    } catch (e: any) { setErr(e.message); setSaving(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 z-30 bg-black/40 grid place-items-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg p-5 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-slate-800">Edit observation #{obs.id}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-slate-500">Status
-            <select className={field} value={form.status} onChange={(e) => set("status", e.target.value)}>
-              <option value="open">open</option><option value="closed">closed</option>
-            </select>
-          </label>
-          <label className="text-xs text-slate-500">Risk
-            <select className={field} value={form.risk} onChange={(e) => set("risk", e.target.value)}>
-              <option value="">—</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option>
-            </select>
-          </label>
-          <label className="text-xs text-slate-500">Date opened
-            <input type="date" className={field} value={form.date_open} onChange={(e) => set("date_open", e.target.value)} />
-          </label>
-          <label className="text-xs text-slate-500">Date closed
-            <input type="date" className={field} value={form.date_closed} onChange={(e) => set("date_closed", e.target.value)} />
-          </label>
-          <label className="text-xs text-slate-500 col-span-2">Category
-            <input className={field} value={form.category} onChange={(e) => set("category", e.target.value)} />
-          </label>
-          <label className="text-xs text-slate-500 col-span-2">Observation
-            <textarea className={field} rows={2} value={form.observation} onChange={(e) => set("observation", e.target.value)} />
-          </label>
-          <label className="text-xs text-slate-500 col-span-2">Recommendation
-            <textarea className={field} rows={2} value={form.recommendation} onChange={(e) => set("recommendation", e.target.value)} />
-          </label>
-          <label className="text-xs text-slate-500 col-span-2">Corrective action
-            <textarea className={field} rows={2} value={form.corrective_action} onChange={(e) => set("corrective_action", e.target.value)} />
-          </label>
-        </div>
-        {err && <p className="text-rose-600 text-sm mt-2">{err}</p>}
-        <div className="flex gap-2 mt-4">
-          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600">Cancel</button>
-          <button onClick={save} disabled={saving} className="flex-1 py-2 rounded-xl bg-brand text-white font-medium disabled:opacity-50">
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

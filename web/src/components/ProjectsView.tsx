@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type Observation, type Project, type Submission } from "../api.ts";
 import InfoTip from "./InfoTip.tsx";
+import EditObservationModal from "./EditObservationModal.tsx";
 
 const RISK_BADGE: Record<string, string> = {
   high: "bg-rose-100 text-rose-700",
@@ -48,6 +49,12 @@ export default function ProjectsView() {
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ observations: Observation[]; reports: Submission[] } | null>(null);
+  const [editing, setEditing] = useState<Observation | null>(null);
+
+  function applyEdit(u: Observation) {
+    setDetail((d) => (d ? { ...d, observations: d.observations.map((o) => (o.id === u.id ? u : o)) } : d));
+    setEditing(null);
+  }
 
   useEffect(() => { api.projects().then(setProjects).catch(() => {}); }, []);
   useEffect(() => {
@@ -148,7 +155,7 @@ export default function ProjectsView() {
           <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
-                <tr><th className="px-3 py-2">Observation</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Risk</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Clause</th></tr>
+                <tr><th className="px-3 py-2">Observation</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Risk</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Clause</th><th className="px-3 py-2"></th></tr>
               </thead>
               <tbody>
                 {detail.observations.map((o) => (
@@ -158,6 +165,16 @@ export default function ProjectsView() {
                     <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${RISK_BADGE[o.risk] ?? "bg-slate-100"}`}>{o.risk ?? "—"}</span></td>
                     <td className="px-3 py-2 text-slate-600">{o.status}</td>
                     <td className="px-3 py-2 text-xs text-brand whitespace-nowrap">{o.hse_reference ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => setEditing(o)}
+                        title="Edit this observation"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-brand border border-brand/30 rounded-lg px-2 py-1 hover:bg-brand hover:text-white transition-colors whitespace-nowrap"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -180,6 +197,8 @@ export default function ProjectsView() {
             </ul>
           </div>
         )}
+
+        {editing && <EditObservationModal obs={editing} onClose={() => setEditing(null)} onSaved={applyEdit} />}
       </div>
     );
   }
