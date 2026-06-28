@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Facets, type Observation } from "../api.ts";
 import EditObservationModal from "./EditObservationModal.tsx";
+import ReportViewer from "./ReportViewer.tsx";
 
 const COLUMNS: { key: string; label: string }[] = [
   { key: "week", label: "Wk" },
@@ -32,6 +33,7 @@ export default function DataGrid() {
   const [data, setData] = useState<{ total: number; rows: Observation[] }>({ total: 0, rows: [] });
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Observation | null>(null);
+  const [viewerId, setViewerId] = useState<number | null>(null);
 
   function applyEdit(updated: Observation) {
     setData((d) => ({ ...d, rows: d.rows.map((r) => (r.id === updated.id ? updated : r)) }));
@@ -108,7 +110,11 @@ export default function DataGrid() {
                   <td className="px-3 py-2 text-slate-400">{r.week ?? "—"}</td>
                   <td className="px-3 py-2 max-w-md">
                     {r.observation}
-                    {r.origin === "submission" && <span className="ml-1 text-[10px] bg-brand/10 text-brand rounded px-1">submitted</span>}
+                    {r.origin === "submission" && r.report_id && (
+                      <button onClick={() => setViewerId(r.report_id)}
+                        className="ml-1 text-[10px] bg-brand/10 text-brand rounded px-1 hover:bg-brand hover:text-white"
+                        title="View the original submitted report">📄 view report</button>
+                    )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-600">{r.category ?? "—"}</td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${RISK_BADGE[r.risk] ?? "bg-slate-100"}`}>{r.risk ?? "—"}</span></td>
@@ -136,6 +142,7 @@ export default function DataGrid() {
       </div>
 
       {editing && <EditObservationModal obs={editing} onClose={() => setEditing(null)} onSaved={(u) => { applyEdit(u); setEditing(null); }} />}
+      {viewerId && <ReportViewer reportId={viewerId} onClose={() => setViewerId(null)} />}
 
       <div className="flex items-center justify-between text-sm text-slate-500">
         <span>{loading ? "Loading…" : `Showing ${data.total ? offset + 1 : 0}–${Math.min(offset + PAGE, data.total)} of ${data.total.toLocaleString()}`}</span>

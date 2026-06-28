@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type Observation, type Project, type Submission } from "../api.ts";
 import InfoTip from "./InfoTip.tsx";
 import EditObservationModal from "./EditObservationModal.tsx";
+import ReportViewer from "./ReportViewer.tsx";
 
 const RISK_BADGE: Record<string, string> = {
   high: "bg-rose-100 text-rose-700",
@@ -50,6 +51,7 @@ export default function ProjectsView() {
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ observations: Observation[]; reports: Submission[] } | null>(null);
   const [editing, setEditing] = useState<Observation | null>(null);
+  const [viewerId, setViewerId] = useState<number | null>(null);
 
   function applyEdit(u: Observation) {
     setDetail((d) => (d ? { ...d, observations: d.observations.map((o) => (o.id === u.id ? u : o)) } : d));
@@ -160,7 +162,11 @@ export default function ProjectsView() {
               <tbody>
                 {detail.observations.map((o) => (
                   <tr key={o.id} className="border-t border-slate-100 align-top hover:bg-slate-50">
-                    <td className="px-3 py-2 max-w-md">{o.observation}{o.origin === "submission" && <span className="ml-1 text-[10px] bg-brand/10 text-brand rounded px-1">submitted</span>}</td>
+                    <td className="px-3 py-2 max-w-md">{o.observation}{o.origin === "submission" && o.report_id && (
+                      <button onClick={() => setViewerId(o.report_id)}
+                        className="ml-1 text-[10px] bg-brand/10 text-brand rounded px-1 hover:bg-brand hover:text-white"
+                        title="View the original submitted report">📄 view report</button>
+                    )}</td>
                     <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{o.category ?? "—"}</td>
                     <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${RISK_BADGE[o.risk] ?? "bg-slate-100"}`}>{o.risk ?? "—"}</span></td>
                     <td className="px-3 py-2 text-slate-600">{o.status}</td>
@@ -199,6 +205,7 @@ export default function ProjectsView() {
         )}
 
         {editing && <EditObservationModal obs={editing} onClose={() => setEditing(null)} onSaved={applyEdit} />}
+        {viewerId && <ReportViewer reportId={viewerId} onClose={() => setViewerId(null)} />}
       </div>
     );
   }

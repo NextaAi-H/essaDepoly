@@ -33,7 +33,7 @@ projectsRouter.get("/:name", (req, res) => {
   const observations = db
     .prepare(
       `SELECT id, week, observation, recommendation, corrective_action, status, date_open,
-              date_closed, type, category, risk, source, hse_reference, reported_by, origin
+              date_closed, type, category, risk, source, hse_reference, reported_by, origin, report_id
        FROM observations WHERE lower(location) = lower(?) ORDER BY risk='high' DESC, id DESC`,
     )
     .all(name);

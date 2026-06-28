@@ -9,6 +9,8 @@ services:
     buildCommand: npm install --prefix server && npm install --prefix web && npm run build --prefix web
     startCommand: npm start --prefix server
     envVars:
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=400   # raise heap ceiling on the 512MB free tier
       - key: AI_PROVIDER
         value: openai
       - key: OPENAI_MODEL
