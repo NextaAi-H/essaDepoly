@@ -1,0 +1,16 @@
+node_modules/
+server/uploads/
+server/.env
+.env
+web/dist/
+*.log
+samples/
+
+# Ship the prebuilt data needed to deploy (the source PDFs/Excel are NOT in this
+# repo, so these two prebuilt files must be committed).
+server/data/*
+!server/data/corpus.json
+!server/data/hse.db
+
+# Do NOT commit the full original client report files (PDFs/photos).
+*REAL*

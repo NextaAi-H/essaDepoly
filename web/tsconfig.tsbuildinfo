@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/components/assistant.tsx","./src/components/datagrid.tsx","./src/components/infotip.tsx","./src/components/kpicard.tsx","./src/components/projectsview.tsx","./src/components/resultcard.tsx","./src/components/submissionlog.tsx","./src/pages/dashboard.tsx","./src/pages/submit.tsx"],"version":"5.9.3"}

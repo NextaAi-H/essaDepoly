@@ -1,0 +1,17 @@
+# Render.com free-tier deploy config.
+# In Render: New + → Blueprint → connect this repo. Then set OPENAI_API_KEY in the
+# dashboard (it is intentionally NOT stored here).
+services:
+  - type: web
+    name: essa-hse-pilot
+    runtime: node
+    plan: free
+    buildCommand: npm install --prefix server && npm install --prefix web && npm run build --prefix web
+    startCommand: npm start --prefix server
+    envVars:
+      - key: AI_PROVIDER
+        value: openai
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: OPENAI_API_KEY
+        sync: false   # set this manually in the Render dashboard
