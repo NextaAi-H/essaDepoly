@@ -25,6 +25,18 @@ function contentKey(observation: string, location: string, category: string, ris
   return [norm(observation), norm(location), norm(category), norm(risk)].join(" | ");
 }
 
+// Word-set Jaccard similarity of two observation texts (0..1). Used so a report
+// stays a duplicate even when the wording shifts slightly (e.g. an AI summary of
+// a document, or a re-worded entry) — not only on an exact text match.
+function obsSimilarity(a: string, b: string): number {
+  const ta = new Set(norm(a).split(" ").filter((w) => w.length > 2));
+  const tb = new Set(norm(b).split(" ").filter((w) => w.length > 2));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let inter = 0;
+  for (const w of ta) if (tb.has(w)) inter++;
+  return inter / (ta.size + tb.size - inter);
+}
+
 // Content-based duplicate check against the stored observation data (seed + prior
 // accepted submissions). Two reports are duplicates if observation+location+
 // category+risk match, regardless of date or who submitted them.
@@ -52,8 +64,15 @@ export function checkDuplicate(extraction: ExtractionResult): DuplicateCheck {
         .all() as any[]);
 
   for (const c of candidates) {
+    // Exact content-key match, OR same location+category+risk with a highly
+    // similar observation (≥ 0.7 word overlap) to absorb minor wording shifts.
     const ck = contentKey(c.observation ?? "", c.location ?? "", c.category ?? "", c.risk ?? "");
-    if (ck === key) {
+    const sameContext =
+      norm(c.location ?? "") === norm(rec.location ?? "") &&
+      norm(c.category ?? "") === norm(rec.category ?? "") &&
+      norm(c.risk ?? "") === norm(rec.risk ?? "");
+    const isDup = ck === key || (sameContext && obsSimilarity(rec.observation ?? "", c.observation ?? "") >= 0.7);
+    if (isDup) {
       const where = c.location ? ` at ${c.location}` : "";
       const when = c.date_open ? ` (originally recorded ${c.date_open})` : "";
       return {
@@ -61,8 +80,30 @@ export function checkDuplicate(extraction: ExtractionResult): DuplicateCheck {
         duplicateOfId: c.id,
         message:
           `This report matches an existing record${where}${when}: same observation, category and risk level. ` +
-          `Only non-critical details (date / submitter) differ. Logged as a duplicate — not added to the data.`,
+          `Only non-critical details (date / submitter / wording) differ. Logged as a duplicate — not added to the data.`,
       };
+    }
+  }
+
+  // Also catch re-submissions of the SAME document by comparing the full extracted
+  // text against recent submissions. Robust for documents the AI summarizes (where
+  // the per-field risk record can vary run-to-run) — e.g. the same report with a
+  // field or header edited still reads as ~identical text.
+  const rawWords = norm(extraction.rawText ?? "").split(" ").filter((w) => w.length > 2);
+  if (rawWords.length >= 30) {
+    const reports = db
+      .prepare("SELECT id, ocr_text FROM reports WHERE ocr_text IS NOT NULL ORDER BY id DESC LIMIT 200")
+      .all() as any[];
+    for (const r of reports) {
+      if (obsSimilarity(extraction.rawText ?? "", r.ocr_text ?? "") >= 0.85) {
+        return {
+          isDuplicate: true,
+          duplicateOfId: null,
+          message:
+            `This report's content is essentially identical to a previously submitted report (report #${r.id}); ` +
+            `only minor details (e.g. a header or field) differ. Logged as a duplicate — not added to the data.`,
+        };
+      }
     }
   }
 
