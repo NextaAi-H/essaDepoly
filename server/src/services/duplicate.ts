@@ -95,7 +95,7 @@ export function checkDuplicate(extraction: ExtractionResult): DuplicateCheck {
       .prepare("SELECT id, ocr_text FROM reports WHERE ocr_text IS NOT NULL ORDER BY id DESC LIMIT 200")
       .all() as any[];
     for (const r of reports) {
-      if (obsSimilarity(extraction.rawText ?? "", r.ocr_text ?? "") >= 0.85) {
+      if (obsSimilarity(extraction.rawText ?? "", r.ocr_text ?? "") >= 0.8) {
         return {
           isDuplicate: true,
           duplicateOfId: null,
