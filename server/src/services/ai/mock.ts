@@ -155,6 +155,7 @@ export class MockProvider implements AiProvider {
     const score = Math.max(0, 100 - mustFix * 25 - (findings.length - mustFix) * 5);
     return {
       reportLabel: input.detectedType || "HSE Report",
+      documentKind: "field_report",
       verdict,
       complianceScore: score,
       summary:

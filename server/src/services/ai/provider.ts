@@ -69,6 +69,7 @@ export type JudgeFinding = {
 
 export type JudgeResult = {
   reportLabel: string;            // what the AI thinks the report is
+  documentKind?: string;          // field_report | plan_or_program | informational | unreadable
   verdict: "ACCEPTED" | "NOT_ACCEPTED";
   complianceScore: number;        // 0..100
   summary: string;

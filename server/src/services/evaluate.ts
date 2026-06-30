@@ -22,6 +22,36 @@ export type Evaluation = {
   mode: "rules-first" | "fallback-template";
 };
 
+type GateFinding = { field: string; issue: string; clause: string };
+
+// Deterministic compliance gate — concrete, machine-checkable GI violations applied
+// to the extracted record ON TOP of the AI judge. Kept deterministic (not left to the
+// model) so these specific breaches are caught reliably and CANNOT drift into
+// over-rejecting complete reports the way a strengthened judge prompt does.
+// Scoped to field reports only — never an informational record (monthly stats / MoM)
+// or a reference plan, which legitimately have no per-finding corrective action.
+function complianceGate(extraction: ExtractionResult, documentKind: string | undefined): GateFinding[] {
+  if (documentKind !== "field_report") return [];
+  const rr = extraction.riskRecord;
+  const blank = (v: string | null | undefined) => !v || v.trim().length < 2;
+  const out: GateFinding[] = [];
+
+  // GI 6.006 (Loss Prevention Compliance Review): a substantive medium/high-risk
+  // finding MUST carry a corrective action. A real hazard recorded with no corrective
+  // action is an unclosed compliance gap — a documented violation, not just a hint.
+  const hazard = !blank(rr.observation) && (rr.observation as string).trim().length > 15;
+  if (hazard && blank(rr.corrective_action) && (rr.risk === "high" || rr.risk === "medium")) {
+    out.push({
+      field: "Corrective Action",
+      issue:
+        "A medium/high-risk finding is recorded with no corrective action. GI 6.006 (Loss Prevention " +
+        "Compliance Review) requires a corrective action to be documented before a finding is accepted.",
+      clause: "GI 6.006",
+    });
+  }
+  return out;
+}
+
 // Rules-first evaluation: judge ANY report against the GI rulebook (RAG + AI),
 // regardless of whether we have its template. Falls back to the deterministic
 // template checker only if the AI judge is unavailable.
@@ -65,17 +95,21 @@ export async function evaluateReport(extraction: ExtractionResult): Promise<Eval
   const mustFix = judged.findings.filter((f) => f.severity === "must-fix");
   const recommended = judged.findings.filter((f) => f.severity !== "must-fix");
 
+  // Add deterministic GI-violation findings (machine-checked, scoped to field reports).
+  const gate = complianceGate(extraction, judged.documentKind);
+  const allMustFix: GateFinding[] = [...mustFix, ...gate];
+
   // Attach the real clause text behind each must-fix finding.
-  const findings: EvaluatedFinding[] = mustFix.map((f) => {
+  const findings: EvaluatedFinding[] = allMustFix.map((f) => {
     const ev = r.available && (f.clause || f.field) ? r.retrieve(`${f.clause} ${f.field}`, 1, 1) : [];
-    return { ...f, evidence: ev.length ? ev : undefined };
+    return { field: f.field, issue: f.issue, clause: f.clause, evidence: ev.length ? ev : undefined };
   });
 
-  const verdict = mustFix.length === 0 ? "ACCEPTED" : "NOT_ACCEPTED";
+  const verdict = allMustFix.length === 0 ? "ACCEPTED" : "NOT_ACCEPTED";
   const complianceScore =
     verdict === "ACCEPTED"
       ? Math.max(85, 100 - recommended.length * 3)
-      : Math.max(0, 100 - mustFix.length * 20 - recommended.length * 3);
+      : Math.max(0, 100 - allMustFix.length * 20 - recommended.length * 3);
 
   const recommendations = [
     ...recommended.map((f) => `${f.field}: ${f.issue}${f.clause ? ` (${f.clause})` : ""}`),

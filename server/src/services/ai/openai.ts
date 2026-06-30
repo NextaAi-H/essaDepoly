@@ -205,6 +205,7 @@ OUTPUT — in "recommendations" give clear, specific, step-by-step actions (most
       const verdict = p.verdict === "ACCEPTED" ? "ACCEPTED" : "NOT_ACCEPTED";
       return {
         reportLabel: typeof p.reportLabel === "string" ? p.reportLabel : input.detectedType,
+        documentKind: typeof p.documentKind === "string" ? p.documentKind : undefined,
         verdict,
         complianceScore: Number.isFinite(p.complianceScore) ? Math.max(0, Math.min(100, p.complianceScore)) : (verdict === "ACCEPTED" ? 100 : 50),
         summary: typeof p.summary === "string" ? p.summary : "",

@@ -86,13 +86,17 @@ export function checkDuplicate(extraction: ExtractionResult): DuplicateCheck {
   }
 
   // Also catch re-submissions of the SAME document by comparing the full extracted
-  // text against recent submissions. Robust for documents the AI summarizes (where
-  // the per-field risk record can vary run-to-run) — e.g. the same report with a
-  // field or header edited still reads as ~identical text.
+  // text against prior ACCEPTED submissions. Robust for documents the AI summarizes
+  // (where the per-field risk record can vary run-to-run) — e.g. the same report with
+  // a field or header edited still reads as ~identical text. Only accepted reports
+  // (stored_in_data = 1) count as "originals": a duplicate means the content is
+  // already in the records, so a previously REJECTED report is never a match.
   const rawWords = norm(extraction.rawText ?? "").split(" ").filter((w) => w.length > 2);
   if (rawWords.length >= 30) {
     const reports = db
-      .prepare("SELECT id, ocr_text FROM reports WHERE ocr_text IS NOT NULL ORDER BY id DESC LIMIT 200")
+      .prepare(
+        "SELECT id, ocr_text FROM reports WHERE ocr_text IS NOT NULL AND stored_in_data = 1 ORDER BY id DESC LIMIT 200",
+      )
       .all() as any[];
     for (const r of reports) {
       if (obsSimilarity(extraction.rawText ?? "", r.ocr_text ?? "") >= 0.8) {
