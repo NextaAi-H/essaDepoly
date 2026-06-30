@@ -36,14 +36,26 @@ export async function extractReport(
       // A scanned PDF yields only markers, so this collapses to near-zero.
       const meaningful = text.replace(/--\s*\d+\s*of\s*\d+\s*--/g, "").replace(/\s+/g, "").length;
 
+      // Page count, so we can OCR every page of a scan (within a safety cap).
+      const info = await parser.getInfo().catch(() => null as any);
+      const totalPages = Number(info?.total ?? 0) || 0;
+      const MAX_OCR_PAGES = 20; // cap to bound cost/time on very large scans
+
       if (meaningful > 120) {
-        input.text = text.slice(0, 12000);
+        // Text-based PDF: read ALL pages' text (generous cap — fits a long report).
+        input.text = text.slice(0, 80000);
       } else {
-        // Scanned / image-only PDF → render up to 3 pages to PNG for vision OCR.
-        const shot = await parser.getScreenshot({ scale: 2, first: 3 });
+        // Scanned / image-only PDF: render every page (up to the cap) and OCR via vision.
+        const pageCount = totalPages > 0 ? Math.min(totalPages, MAX_OCR_PAGES) : MAX_OCR_PAGES;
+        const shot = await parser.getScreenshot({ scale: 2, first: pageCount });
         const pages = (shot?.pages ?? []) as { data: Uint8Array }[];
         if (pages.length) {
           input.images = pages.map((p) => Buffer.from(p.data).toString("base64"));
+          if (totalPages > pages.length) {
+            // Tell the model only the first N pages were read, so it doesn't assume
+            // later-page content is missing.
+            input.text = `(Note: this scanned PDF has ${totalPages} pages; the first ${pages.length} were read.)`;
+          }
         } else {
           input.text = `(This PDF appears to be a scan and no pages could be rendered: ${filename}.)`;
         }
