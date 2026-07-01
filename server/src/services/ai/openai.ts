@@ -71,6 +71,7 @@ export class OpenAiProvider implements AiProvider {
     const completion = await this.client.chat.completions.create({
       model: this.model,
       temperature: 0,
+      seed: 7, // best-effort determinism: same image → same extraction across runs
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -187,6 +188,7 @@ OUTPUT — in "recommendations" give clear, specific, step-by-step actions (most
       const completion = await this.client.chat.completions.create({
         model: this.model,
         temperature: 0,
+        seed: 7, // best-effort determinism so the same report gets a stable verdict
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: sys },

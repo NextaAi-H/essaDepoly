@@ -48,30 +48,28 @@ export function checkDuplicate(extraction: ExtractionResult): DuplicateCheck {
 
   const key = contentKey(rec.observation, rec.location ?? "", rec.category ?? "", rec.risk ?? "");
 
-  // Narrow candidates by location (indexed) when available, else scan recent rows.
-  const candidates = rec.location
-    ? (db
-        .prepare(
-          `SELECT id, observation, location, category, risk, date_open, reported_by
-           FROM observations WHERE lower(COALESCE(location,'')) = lower(?)`,
-        )
-        .all(rec.location) as any[])
-    : (db
-        .prepare(
-          `SELECT id, observation, location, category, risk, date_open, reported_by
-           FROM observations ORDER BY id DESC LIMIT 1000`,
-        )
-        .all() as any[]);
+  // Scan a broad recent window REGARDLESS of location — the AI can read the location
+  // (or category/risk) field slightly differently on a re-submission, so those fields
+  // must not gate the match. Submissions get the highest ids, so a just-accepted report
+  // is always near the top of this window.
+  const candidates = db
+    .prepare(
+      `SELECT id, observation, location, category, risk, date_open, reported_by
+       FROM observations ORDER BY id DESC LIMIT 5000`,
+    )
+    .all() as any[];
 
   for (const c of candidates) {
-    // Exact content-key match, OR same location+category+risk with a highly
-    // similar observation (≥ 0.7 word overlap) to absorb minor wording shifts.
+    // Match on the report's actual CONTENT — the observation text — not on the
+    // AI-derived category/risk (which can vary run-to-run and are exactly the kind
+    // of field a re-submission might change). A duplicate is: an exact content-key
+    // match, OR the same finding at the same location (≥ 0.75 word overlap), OR a
+    // near-identical finding anywhere (≥ 0.85). This absorbs changed date / reporter
+    // / header / category / risk while still flagging the same underlying report.
     const ck = contentKey(c.observation ?? "", c.location ?? "", c.category ?? "", c.risk ?? "");
-    const sameContext =
-      norm(c.location ?? "") === norm(rec.location ?? "") &&
-      norm(c.category ?? "") === norm(rec.category ?? "") &&
-      norm(c.risk ?? "") === norm(rec.risk ?? "");
-    const isDup = ck === key || (sameContext && obsSimilarity(rec.observation ?? "", c.observation ?? "") >= 0.7);
+    const sameLoc = norm(c.location ?? "") === norm(rec.location ?? "");
+    const obsSim = obsSimilarity(rec.observation ?? "", c.observation ?? "");
+    const isDup = ck === key || (sameLoc && obsSim >= 0.7) || obsSim >= 0.8;
     if (isDup) {
       const where = c.location ? ` at ${c.location}` : "";
       const when = c.date_open ? ` (originally recorded ${c.date_open})` : "";
@@ -79,8 +77,8 @@ export function checkDuplicate(extraction: ExtractionResult): DuplicateCheck {
         isDuplicate: true,
         duplicateOfId: c.id,
         message:
-          `This report matches an existing record${where}${when}: same observation, category and risk level. ` +
-          `Only non-critical details (date / submitter / wording) differ. Logged as a duplicate — not added to the data.`,
+          `This report matches an existing record${where}${when}: the same observation is already on file. ` +
+          `Only non-critical details (date / submitter / wording / risk rating) differ. Logged as a duplicate — not added to the data.`,
       };
     }
   }
